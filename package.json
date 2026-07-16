@@ -1,0 +1,17 @@
+{
+  "name": "kadhaipoma-chat",
+  "version": "1.0.0",
+  "description": "Voice, Video & Text Chat Platform",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "^4.18.2",
+    "multer": "^2.2.0",
+    "socket.io": "^4.7.2",
+    "uuid": "^9.0.0"
+  }
+}

@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kadhaipoma - Voice, Video & Text Chat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Dancing+Script:wght@400;700&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Ambient Effects -->
+  <canvas id="star-canvas"></canvas>
+  <div class="aurora"></div>
+  <div class="mist-layer"></div>
+
+  <!-- Auth Screen (Login / Register) -->
+  <div id="auth-screen" class="screen active">
+    <div class="auth-box">
+      <h1>Kadhaipoma</h1>
+      <p class="tagline">Voice, Video & Text Chat</p>
+
+      <div class="auth-tabs">
+        <button class="auth-tab active" data-tab="login">Login</button>
+        <button class="auth-tab" data-tab="register">Register</button>
+      </div>
+
+      <!-- Login Form -->
+      <form id="login-form" class="auth-form active">
+        <input type="text" id="login-username" placeholder="Username" maxlength="20" autocomplete="username" />
+        <input type="password" id="login-password" placeholder="Password" autocomplete="current-password" />
+        <div id="login-error" class="auth-error"></div>
+        <button type="submit">Login</button>
+      </form>
+
+      <!-- Register Form -->
+      <form id="register-form" class="auth-form">
+        <input type="text" id="reg-username" placeholder="Choose a username" maxlength="20" autocomplete="username" />
+        <input type="password" id="reg-password" placeholder="Choose a password" minlength="4" autocomplete="new-password" />
+        <input type="password" id="reg-password-confirm" placeholder="Confirm password" minlength="4" autocomplete="new-password" />
+        <div id="register-error" class="auth-error"></div>
+        <button type="submit">Create Account</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Device Setup Screen -->
+  <div id="device-screen" class="screen">
+    <div class="device-box">
+      <h2>Device Setup</h2>
+      <p class="tagline">Allow camera & microphone access to use voice and video calls</p>
+
+      <div class="device-preview">
+        <video id="device-preview-video" autoplay playsinline muted></video>
+        <div id="device-preview-placeholder" class="device-placeholder">
+          <span class="device-placeholder-icon">📷</span>
+          <span>Camera preview</span>
+        </div>
+        <div id="device-permission-denied" class="device-denied hidden">
+          <span>⚠️</span>
+          <span id="device-denied-text">Camera/Microphone access denied</span>
+          <span class="device-denied-sub">You can still use text chat, but voice &amp; video calls won't work.</span>
+        </div>
+      </div>
+
+      <div class="device-info">
+        <div class="device-status">
+          <span id="mic-status" class="device-indicator">🎤 Microphone</span>
+          <span id="cam-status" class="device-indicator">📷 Camera</span>
+        </div>
+      </div>
+
+      <button id="device-allow-btn" class="primary-btn">Allow Camera & Microphone</button>
+      <button id="device-continue-btn" class="primary-btn hidden">Continue to Chat</button>
+      <button id="device-retry-btn" class="secondary-btn hidden">Try Again</button>
+      <button id="device-skip-btn" class="secondary-btn">Skip — Text Only</button>
+    </div>
+  </div>
+
+  <!-- Main App -->
+  <div id="app-screen" class="screen">
+    <div class="app-layout">
+      <!-- Sidebar -->
+      <div id="sidebar-overlay" class="sidebar-overlay"></div>
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+          <h2>Kadhaipoma</h2>
+          <div id="current-user-badge" class="user-badge"></div>
+        </div>
+        <div class="sidebar-section">
+          <h3>Rooms <button id="create-room-btn" title="Create Room">+</button></h3>
+          <div id="room-list"></div>
+        </div>
+        <div class="sidebar-section">
+          <h3>Online</h3>
+          <div id="online-list"></div>
+        </div>
+        <div class="sidebar-footer">
+          <button id="logout-btn" class="logout-btn">Logout</button>
+        </div>
+      </aside>
+
+      <!-- Chat Area -->
+      <main class="chat-area">
+        <div class="chat-header">
+          <div class="chat-header-left">
+            <button id="mobile-menu-btn" class="mobile-menu-btn">☰</button>
+            <button id="mobile-users-btn" class="mobile-users-btn">👥</button>
+            <h3 id="current-room-name">Select a room</h3>
+          </div>
+          <div class="chat-actions">
+            <button id="voice-call-btn" class="call-btn voice-btn" title="Voice Call" disabled>🎤</button>
+            <button id="video-call-btn" class="call-btn video-btn" title="Video Call" disabled>📹</button>
+            <button id="screen-share-btn" class="call-btn screen-btn" title="Share Screen" disabled>🖥️</button>
+          </div>
+        </div>
+        <div id="messages" class="messages"></div>
+        <div class="chat-input-area">
+          <button id="image-upload-btn" class="image-upload-btn" title="Send Image" disabled>🖼️</button>
+          <input type="file" id="image-upload-input" accept="image/*" class="hidden-file-input" />
+          <input type="text" id="msg-input" placeholder="Type a message..." disabled />
+          <button id="send-btn" disabled>Send</button>
+        </div>
+      </main>
+
+      <!-- Room Users Sidebar -->
+      <div id="users-overlay" class="users-overlay"></div>
+      <aside class="room-sidebar" id="room-sidebar">
+        <div class="room-sidebar-header">
+          <h3>In This Room</h3>
+          <button id="close-users-btn" class="close-users-btn">✕</button>
+        </div>
+        <div id="room-users-list"></div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- Create Room Modal -->
+  <div id="room-modal" class="modal">
+    <div class="modal-content">
+      <h3>Create Room</h3>
+      <input type="text" id="room-name-input" placeholder="Room name..." maxlength="30" />
+      <div class="modal-actions">
+        <button id="modal-cancel">Cancel</button>
+        <button id="modal-create">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Call Modal (incoming) -->
+  <div id="call-modal" class="modal">
+    <div class="modal-content call-modal-content">
+      <div id="call-modal-icon" class="call-modal-icon"></div>
+      <h3 id="call-modal-text">Incoming call...</h3>
+      <div class="modal-actions">
+        <button id="call-reject-btn" class="call-action reject">Decline</button>
+        <button id="call-accept-btn" class="call-action accept">Accept</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Active Call Panel -->
+  <div id="call-panel" class="call-panel hidden">
+    <div class="call-top-bar">
+      <span id="call-status-text" class="call-status-text">Connecting...</span>
+      <button id="fullscreen-btn" class="call-top-btn" title="Fullscreen">⛶</button>
+    </div>
+    <div class="call-video-container" id="call-video-container">
+      <div id="screen-share-indicator" class="screen-share-indicator">Screen Sharing</div>
+      <video id="remote-video" autoplay playsinline></video>
+      <video id="local-video" autoplay playsinline muted></video>
+      <div class="zoom-controls">
+        <button id="zoom-in-btn" class="zoom-btn" title="Zoom In">+</button>
+        <button id="zoom-out-btn" class="zoom-btn" title="Zoom Out">−</button>
+      </div>
+    </div>
+    <div class="call-controls">
+      <button id="call-chat-btn" class="call-control-btn" title="Chat">💬</button>
+      <button id="toggle-mic-btn" class="call-control-btn" title="Mute">🎤</button>
+      <button id="toggle-screen-btn" class="call-control-btn" title="Share Screen">🖥️</button>
+      <button id="switch-cam-btn" class="call-control-btn" title="Switch Camera">🔄</button>
+      <button id="hangup-btn" class="call-control-btn hangup" title="Hang Up">📞</button>
+      <button id="toggle-cam-btn" class="call-control-btn" title="Camera Off">📹</button>
+    </div>
+  </div>
+
+  <!-- In-Call Chat Panel -->
+  <div id="call-chat-panel" class="call-chat-panel hidden">
+    <div class="call-chat-header">
+      <h3>Chat</h3>
+      <button id="call-chat-close" class="call-chat-close">✕</button>
+    </div>
+    <div id="call-chat-messages" class="call-chat-messages"></div>
+    <div class="call-chat-input-area">
+      <input type="text" id="call-chat-input" placeholder="Type a message..." />
+      <button id="call-chat-send">Send</button>
+    </div>
+  </div>
+
+  <!-- Floating Chat Button -->
+  <button id="float-chat-btn" class="float-chat-btn" title="Quick Chat">
+    <span class="float-chat-icon">💬</span>
+  </button>
+
+  <!-- Quick Chat Overlay -->
+  <div id="quick-chat-overlay" class="quick-chat-overlay">
+    <div class="quick-chat-container">
+      <div class="quick-chat-header">
+        <h3>Quick Chat</h3>
+        <button id="close-quick-chat" class="close-quick-chat">✕</button>
+      </div>
+      <div id="quick-chat-messages" class="quick-chat-messages"></div>
+      <div class="quick-chat-input-area">
+        <input type="text" id="quick-chat-input" placeholder="Type a message..." />
+        <button id="quick-chat-send">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function() {
+    const canvas = document.getElementById('star-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let stars = [];
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      initStars();
+    }
+    function initStars() {
+      stars = [];
+      const count = Math.floor((canvas.width * canvas.height) / 4000);
+      for (let i = 0; i < count; i++) {
+        stars.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          r: Math.random() * 1.2 + 0.3,
+          a: Math.random(),
+          da: (Math.random() - 0.5) * 0.01
+        });
+      }
+    }
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (const s of stars) {
+        s.a += s.da;
+        if (s.a > 1 || s.a < 0.1) s.da = -s.da;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(180,210,255,${s.a})`;
+        ctx.fill();
+      }
+      requestAnimationFrame(draw);
+    }
+    resize();
+    draw();
+    window.addEventListener('resize', resize);
+  })();
+  </script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
