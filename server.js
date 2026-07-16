@@ -168,6 +168,21 @@ function formatTgMessage(msg) {
   return `[MSG|${msg.id}|${msg.room}|${msg.username}|text|${msg.timestamp}]\n${msg.text}`;
 }
 
+// Format user for Telegram storage
+function formatTgUser(user) {
+  return `[USER|${user.id}|${user.username}|${user.password}|${user.createdAt}]`;
+}
+
+// Store a user to Telegram
+async function storeUserToTelegram(user) {
+  if (!TG_TOKEN || !TG_CHAT_ID) return;
+  try {
+    await tgSendText(formatTgUser(user));
+  } catch (err) {
+    console.error("TG storeUser error:", err.message);
+  }
+}
+
 // Store a message to Telegram
 async function storeMessageToTelegram(msg) {
   const formatted = formatTgMessage(msg);
@@ -191,31 +206,37 @@ async function fetchTgMessages(offset) {
       timeout: 1,
       allowed_updates: ["message"],
     });
-    if (!res.ok) return [];
+    if (!res.ok) return { messages: [], users: [], lastUpdateId: offset || 0 };
     const messages = [];
+    const users = [];
     for (const update of res.result) {
       const msg = update.message;
       if (!msg || msg.chat.id.toString() !== TG_CHAT_ID) continue;
       const text = msg.text || msg.caption || "";
-      const parsed = text.match(/^\[MSG\|([^|]+)\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)\]/);
-      if (parsed) {
-        const [, id, room, username, type, timestamp] = parsed;
+      const msgParsed = text.match(/^\[MSG\|([^|]+)\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)\]/);
+      if (msgParsed) {
+        const [, id, room, username, type, timestamp] = msgParsed;
         messages.push({
           id,
           room,
           username,
           type,
           timestamp,
-          text: type === "text" ? text.replace(parsed[0], "").trim() : "",
+          text: type === "text" ? text.replace(msgParsed[0], "").trim() : "",
           imageUrl: null,
           tgMessageId: msg.message_id,
         });
       }
+      const userParsed = text.match(/^\[USER\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)\]/);
+      if (userParsed) {
+        const [, id, username, password, createdAt] = userParsed;
+        users.push({ id, username, password, createdAt });
+      }
     }
-    return { messages, lastUpdateId: res.result.length ? res.result[res.result.length - 1].update_id : 0 };
+    return { messages, users, lastUpdateId: res.result.length ? res.result[res.result.length - 1].update_id : 0 };
   } catch (err) {
     console.error("TG fetch error:", err.message);
-    return { messages: [], lastUpdateId: offset || 0 };
+    return { messages: [], users: [], lastUpdateId: offset || 0 };
   }
 }
 
@@ -239,6 +260,7 @@ app.post("/api/register", (req, res) => {
   };
   users.push(user);
   writeJSON("users.json", users);
+  storeUserToTelegram(user).catch(() => {});
   res.json({ id: user.id, username: user.username, createdAt: user.createdAt });
 });
 
@@ -348,6 +370,16 @@ app.post("/api/telegram/webhook", async (req, res) => {
     }
   }
 
+  const userParsed = text.match(/^\[USER\|([^|]+)\|([^|]+)\|([^|]+)\|([^\]]+)\]/);
+  if (userParsed) {
+    const [, id, username, password, createdAt] = userParsed;
+    const existingUsers = readJSON("users.json");
+    if (!existingUsers.find((u) => u.username.toLowerCase() === username.toLowerCase())) {
+      existingUsers.push({ id, username, password, createdAt });
+      writeJSON("users.json", existingUsers);
+    }
+  }
+
   tgUpdateOffset = update.update_id + 1;
   res.sendStatus(200);
 });
@@ -369,8 +401,22 @@ app.get("/api/telegram/set-webhook", async (req, res) => {
 
 // REST API — fetch recent messages from Telegram (for restore after restart)
 app.get("/api/telegram/fetch-recent", async (req, res) => {
-  const { messages, lastUpdateId } = await fetchTgMessages(0);
-  if (messages.length === 0) return res.json({ fetched: 0 });
+  const { messages, users, lastUpdateId } = await fetchTgMessages(0);
+
+  let addedUsers = 0;
+  if (users.length > 0) {
+    const existingUsers = readJSON("users.json");
+    const existingUsernames = new Set(existingUsers.map((u) => u.username.toLowerCase()));
+    for (const user of users) {
+      if (!existingUsernames.has(user.username.toLowerCase())) {
+        existingUsers.push(user);
+        addedUsers++;
+      }
+    }
+    if (addedUsers > 0) writeJSON("users.json", existingUsers);
+  }
+
+  if (messages.length === 0 && addedUsers === 0) return res.json({ fetched: 0, usersRestored: 0 });
 
   const existing = readJSON("messages.json");
   const existingIds = new Set(existing.map((m) => m.id));
@@ -383,7 +429,7 @@ app.get("/api/telegram/fetch-recent", async (req, res) => {
   }
   if (added > 0) writeJSON("messages.json", existing);
   tgUpdateOffset = lastUpdateId + 1;
-  res.json({ fetched: added, total: existing.length });
+  res.json({ fetched: added, usersRestored: addedUsers, total: existing.length });
 });
 
 // REST API — delete message
@@ -620,10 +666,25 @@ if (rooms.length === 0) {
 server.listen(PORT, async () => {
   console.log(`Kadhaipoma server running on http://localhost:${PORT}`);
 
-  // Restore messages from Telegram on startup
+  // Restore messages and users from Telegram on startup
   if (TG_TOKEN && TG_CHAT_ID) {
     try {
-      const { messages, lastUpdateId } = await fetchTgMessages(0);
+      const { messages, users, lastUpdateId } = await fetchTgMessages(0);
+      if (users.length > 0) {
+        const existingUsers = readJSON("users.json");
+        const existingUsernames = new Set(existingUsers.map((u) => u.username.toLowerCase()));
+        let addedUsers = 0;
+        for (const user of users) {
+          if (!existingUsernames.has(user.username.toLowerCase())) {
+            existingUsers.push(user);
+            addedUsers++;
+          }
+        }
+        if (addedUsers > 0) {
+          writeJSON("users.json", existingUsers);
+          console.log(`Restored ${addedUsers} users from Telegram`);
+        }
+      }
       if (messages.length > 0) {
         const existing = readJSON("messages.json");
         const existingIds = new Set(existing.map((m) => m.id));
